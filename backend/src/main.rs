@@ -1,5 +1,11 @@
 extern crate ws;
 
+mod channel;
+mod errors;
+mod user;
+mod message;
+mod command;
+
 use ws::listen;
 
 fn main() {
@@ -10,7 +16,7 @@ fn main() {
         move |msg| {
             sender.send("Hello world!")
         }
-        
+
     }).expect("Failed to listen on port 23849.");
 
 }
