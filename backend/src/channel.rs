@@ -44,7 +44,7 @@ impl Channel {
                             let err = err.to_owned();
                             self.handle_command_error(&user, &err);
                         }
-                    },
+                    }
                 }
             } else if let Err(recv_error) = command {
                 eprintln!(
@@ -62,7 +62,17 @@ impl Channel {
                 return Err("User already exists!");
             }
         }
-        self.users.push(new_user);
+
+        let username = new_user.name.clone();
+
+        // If we manage to successfully send the state of the channel back to the user, we're all good to add them to the users list.
+        let send_state_result = new_user.sendMessage(self.get_current_state());
+        if let Ok(()) = send_state_result {
+            self.users.push(new_user);
+        }
+
+        // Broadcast to everyone else that someone new has joined.
+        self.broadcast_message(Message::Join(username));
         Ok(())
     }
 
@@ -78,19 +88,8 @@ impl Channel {
                 }
 
                 // Announce to all users that the speaker has appended to the current message.
-                for index in 0..self.users.len() {
-                    let user = self.users.get(index).unwrap();
-                    let send_result = user.sendMessage(Message::Append(text.to_string()));
+                self.broadcast_message(Message::Append(text.to_owned()));
 
-                    // If the send failed for whatever reason, remove the user from the channel.
-                    if let Err(err) = send_result {
-                        eprintln!(
-                            "Error sending message to {:?}: {:?}. Removing from channel.",
-                            user, err
-                        );
-                        self.users.swap_remove(index);
-                    }
-                }
                 Ok(())
             } else {
                 Err("User not in control of typewriter")
@@ -109,6 +108,22 @@ impl Channel {
         }
     }
 
+    fn broadcast_message(&mut self, message: Message) {
+        for index in 0..self.users.len() {
+            let user = self.users.get(index).unwrap();
+            let send_result = user.sendMessage(message.clone());
+
+            // If the send failed for whatever reason, remove the user from the channel.
+            if let Err(err) = send_result {
+                eprintln!(
+                    "Error sending message to {:?}: {:?}. Removing from channel.",
+                    user, err
+                );
+                self.users.swap_remove(index);
+            }
+        }
+    }
+
     fn remove_user(&mut self, user: &User) {
         for i in 0..self.users.len() {
             if self.users.get(i).unwrap() == user {
@@ -122,5 +137,9 @@ impl Channel {
         if let Err(_) = err_message_result {
             self.remove_user(&user)
         }
+    }
+
+    fn get_current_state(&self) -> Message {
+        Message::ChannelState
     }
 }

@@ -1,14 +1,14 @@
 extern crate ws;
 
 mod channel;
-mod errors;
-mod user;
-mod message;
 mod command;
+mod errors;
+mod message;
+mod user;
 
-use std::thread;
-use std::sync::mpsc;
 use channel::Channel;
+use std::sync::mpsc;
+use std::thread;
 
 use ws::listen;
 
@@ -24,11 +24,7 @@ fn main() {
     });
 
     listen("0.0.0.0:23849", |sender| {
-
-        move |msg| {
-            sender.send("Hello world!")
-        }
-
-    }).expect("Failed to listen on port 23849.");
-
+        move |msg| sender.send("Hello world!")
+    })
+    .expect("Failed to listen on port 23849.");
 }
