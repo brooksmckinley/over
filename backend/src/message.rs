@@ -4,4 +4,6 @@ pub enum Message {
     Append(String),
     /// Signals that the typewriter has changed controllers.
     TypewriterControl(Option<String>),
+    /// Sends back an error
+    Error(String),
 }
