@@ -16,7 +16,7 @@ impl User {
         }
     }
 
-    pub fn sendMessage(&self, message: Message) -> Result<(), SendError<Message>> {
+    pub fn send_message(&self, message: Message) -> Result<(), SendError<Message>> {
         self.listener.send(message)?;
         Ok(())
     }

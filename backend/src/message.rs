@@ -2,7 +2,7 @@
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Contains the current channel's state to allow a new client to catch up.
-    ChannelState,
+    ChannelState(crate::channel::ChannelState),
     /// Signals that the current message has been appended to
     Append(String),
     /// Signals that the typewriter has changed controllers.

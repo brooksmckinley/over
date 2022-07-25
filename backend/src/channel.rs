@@ -45,6 +45,13 @@ impl Channel {
                             self.handle_command_error(&user, &err);
                         }
                     }
+                    Command::RelinquishControl(user) => {
+                        let relinquish_control_result = self.relinquish(&user, false);
+                        if let Err(err) = relinquish_control_result {
+                            let err = err.to_owned();
+                            self.handle_command_error(&user, &err);
+                        }
+                    }
                 }
             } else if let Err(recv_error) = command {
                 eprintln!(
@@ -66,13 +73,13 @@ impl Channel {
         let username = new_user.name.clone();
 
         // If we manage to successfully send the state of the channel back to the user, we're all good to add them to the users list.
-        let send_state_result = new_user.sendMessage(self.get_current_state());
+        let send_state_result = new_user.send_message(self.get_current_state());
         if let Ok(()) = send_state_result {
             self.users.push(new_user);
         }
 
         // Broadcast to everyone else that someone new has joined.
-        self.broadcast_message(Message::Join(username));
+        self.broadcast_message(Message::Join(username), None);
         Ok(())
     }
 
@@ -88,7 +95,7 @@ impl Channel {
                 }
 
                 // Announce to all users that the speaker has appended to the current message.
-                self.broadcast_message(Message::Append(text.to_owned()));
+                self.broadcast_message(Message::Append(text.to_owned()), None);
 
                 Ok(())
             } else {
@@ -104,14 +111,42 @@ impl Channel {
             Err("Another user is in control of the typewriter")
         } else {
             self.speaker = Some(requesting_user.clone());
+            self.broadcast_message(
+                Message::TypewriterControl(
+                    Some(requesting_user.name.clone(),)
+                ), 
+                None
+            );
             Ok(())
         }
     }
 
-    fn broadcast_message(&mut self, message: Message) {
+    fn relinquish(&mut self, user: &User, exempt_user: bool) -> Result<(), &str> {
+        if let Some(ref speaker) = self.speaker {
+            if speaker != user {
+                Err("Cannot relinquish typewriter. User not in control.")
+            } else {
+                self.speaker = None;
+                if exempt_user {
+                    self.broadcast_message(Message::TypewriterControl(None), Some(user));
+                } else {
+                    self.broadcast_message(Message::TypewriterControl(None), None);
+                }
+                Ok(())
+            }
+        } else {
+            Err("Cannot relinquish typewriter. No user is in control.")
+        }
+    }
+
+    fn broadcast_message(&mut self, message: Message, exempt: Option<&User>) {
         for index in 0..self.users.len() {
             let user = self.users.get(index).unwrap();
-            let send_result = user.sendMessage(message.clone());
+            // Skip the broadcast if a user's exempted.
+            if exempt == Some(user) {
+                continue; 
+            }
+            let send_result = user.send_message(message.clone());
 
             // If the send failed for whatever reason, remove the user from the channel.
             if let Err(err) = send_result {
@@ -127,19 +162,42 @@ impl Channel {
     fn remove_user(&mut self, user: &User) {
         for i in 0..self.users.len() {
             if self.users.get(i).unwrap() == user {
+                // If the removed user is in control of the typewriter, attempt to relinquish. If it fails we don't really care.
+                // Exempt the user from any echoing to prevent 
+                let _ = self.relinquish(user, true);
                 self.users.swap_remove(i);
             }
         }
     }
 
     fn handle_command_error(&mut self, user: &User, err: &str) {
-        let err_message_result = user.sendMessage(Message::Error(err.to_owned()));
+        let err_message_result = user.send_message(Message::Error(err.to_owned()));
         if let Err(_) = err_message_result {
             self.remove_user(&user)
         }
     }
 
     fn get_current_state(&self) -> Message {
-        Message::ChannelState
+        Message::ChannelState(ChannelState {
+            users: (&self.users)
+                .into_iter()
+                .map(|user| user.name.clone())
+                .collect(),
+            speaker: match &self.speaker {
+                Some(speaker) => Some(speaker.name.clone()),
+                None => None,
+            },
+            current_message: match &self.current_message {
+                Some(message) => Some(message.clone()),
+                None => None,
+            },
+        })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelState {
+    pub users: Vec<String>,
+    pub speaker: Option<String>,
+    pub current_message: Option<String>,
 }
