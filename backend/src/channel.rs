@@ -27,29 +27,25 @@ impl Channel {
                     Command::RequestTakeControl(user) => {
                         let take_control_result = self.request_take_control(&user);
                         if let Err(err) = take_control_result {
-                            let err = err.to_owned();
-                            self.handle_command_error(&user, &err);
+                            user.send_message(Message::Error(err.to_owned()));
                         }
                     }
                     Command::Append((user, text)) => {
                         let append_result = self.append_to_message(&user, &text);
                         if let Err(err) = append_result {
-                            let err = err.to_owned();
-                            self.handle_command_error(&user, &err);
+                            user.send_message(Message::Error(err.to_owned()));
                         }
                     }
                     Command::Join(user) => {
                         let join_result = self.add_user(user.clone());
                         if let Err(err) = join_result {
-                            let err = err.to_owned();
-                            self.handle_command_error(&user, &err);
+                            user.send_message(Message::Error(err.to_owned()));
                         }
                     }
                     Command::RelinquishControl(user) => {
                         let relinquish_control_result = self.relinquish(&user, false);
                         if let Err(err) = relinquish_control_result {
-                            let err = err.to_owned();
-                            self.handle_command_error(&user, &err);
+                            user.send_message(Message::Error(err.to_owned()));
                         }
                     }
                 }
@@ -73,10 +69,8 @@ impl Channel {
         let username = new_user.name.clone();
 
         // If we manage to successfully send the state of the channel back to the user, we're all good to add them to the users list.
-        let send_state_result = new_user.send_message(self.get_current_state());
-        if let Ok(()) = send_state_result {
-            self.users.push(new_user);
-        }
+        new_user.send_message(self.get_current_state());
+        self.users.push(new_user);
 
         // Broadcast to everyone else that someone new has joined.
         self.broadcast_message(Message::Join(username), None);
@@ -146,16 +140,7 @@ impl Channel {
             if exempt == Some(user) {
                 continue; 
             }
-            let send_result = user.send_message(message.clone());
-
-            // If the send failed for whatever reason, remove the user from the channel.
-            if let Err(err) = send_result {
-                eprintln!(
-                    "Error sending message to {:?}: {:?}. Removing from channel.",
-                    user, err
-                );
-                self.users.swap_remove(index);
-            }
+            user.send_message(message.clone());
         }
     }
 
@@ -167,13 +152,6 @@ impl Channel {
                 let _ = self.relinquish(user, true);
                 self.users.swap_remove(i);
             }
-        }
-    }
-
-    fn handle_command_error(&mut self, user: &User, err: &str) {
-        let err_message_result = user.send_message(Message::Error(err.to_owned()));
-        if let Err(_) = err_message_result {
-            self.remove_user(&user)
         }
     }
 

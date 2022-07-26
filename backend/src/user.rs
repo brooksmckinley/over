@@ -1,24 +1,25 @@
-use std::sync::mpsc::{SendError, Sender};
+use std::sync::mpsc::Sender;
 
 use crate::message::Message;
 
 #[derive(Clone, Debug)]
 pub struct User {
     pub name: String,
-    listener: Sender<Message>,
+    uuid: String,
+    listener: Sender<(String, Message)>,
 }
 
 impl User {
-    pub fn new(name: &str, sender: Sender<Message>) -> User {
+    pub fn new(name: &str, uuid: &str, sender: Sender<(String, Message)>) -> User {
         User {
             name: name.to_owned(),
+            uuid: uuid.to_owned(),
             listener: sender,
         }
     }
 
-    pub fn send_message(&self, message: Message) -> Result<(), SendError<Message>> {
-        self.listener.send(message)?;
-        Ok(())
+    pub fn send_message(&self, message: Message) {
+        self.listener.send((self.uuid.to_owned(), message)).expect("Failed to send message to relay thread. Shutting down.");
     }
 }
 
